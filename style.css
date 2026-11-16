@@ -1,0 +1,444 @@
+:root {
+    --paper: #F3F5EE;
+    --sheet: #FFFFFF;
+    --ink: #15302A;
+    --ink-soft: #566A61;
+    --rule: #C6D0C5;
+    --green: #1F8A5B;
+    --yellow: #F4C534;
+    --red: #CF3F33;
+    --sans: "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei",
+        "Noto Sans CJK SC", sans-serif;
+    --num: "DIN Alternate", "DIN Condensed", "Avenir Next Condensed", "Roboto Condensed",
+        "Arial Narrow", var(--sans);
+    --kai: "Kaiti SC", "STKaiti", "KaiTi", "KaiTi_GB2312", var(--sans);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-text-size-adjust: 100%;
+}
+button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button:disabled { cursor: default; }
+button:focus-visible, a:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+[hidden] { display: none !important; }
+h1, h2, p, ol, dl, dd, blockquote { margin: 0; padding: 0; }
+ol { list-style: none; }
+
+.app { max-width: 430px; margin: 0 auto; }
+.screen { padding: 0 16px 28px; }
+
+.primary {
+    display: block;
+    width: 100%;
+    min-height: 54px;
+    padding: 12px 16px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--ink);
+    color: #fff;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+}
+.primary:active { transform: translateY(1px); }
+
+.disclaimer { margin-top: 28px; font-size: 13px; line-height: 1.7; color: var(--ink-soft); }
+
+/* ── 开始页 ─────────────────────────────────────────────── */
+.start { padding-top: 36px; }
+.start-title { font-size: 60px; line-height: 1.05; font-weight: 800; letter-spacing: 0.03em; }
+.start-sub { margin-top: 10px; font-size: 17px; }
+
+/* 三张计时牌就是规则说明：看一眼就知道答错的代价 */
+.cards { display: flex; justify-content: center; margin: 34px 0 26px; }
+.card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 116px;
+    height: 148px;
+    padding: 12px 12px 10px;
+    border-radius: 6px;
+    box-shadow: 0 3px 0 rgba(21, 48, 42, 0.22);
+}
+.card span { font-size: 14px; }
+.card b { font-size: 32px; line-height: 1.1; font-weight: 800; }
+.card-green { background: var(--green); color: #fff; transform: rotate(-7deg) translateY(8px); }
+.card-yellow {
+    position: relative;
+    z-index: 1;
+    margin: 0 -10px;
+    background: var(--yellow);
+    transform: rotate(2deg);
+}
+.card-red { background: var(--red); color: #fff; transform: rotate(8deg) translateY(10px); }
+.start-rule { margin-bottom: 22px; font-size: 15px; }
+.best { margin-top: 10px; text-align: center; font-size: 14px; color: var(--ink-soft); }
+
+.route-title { margin: 34px 0 8px; font-size: 17px; font-weight: 700; }
+.route { border-top: 2px solid var(--ink); }
+.route-row {
+    display: grid;
+    grid-template-columns: 76px 1fr auto;
+    align-items: baseline;
+    gap: 0 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--rule);
+}
+.route-code { font-family: var(--num); font-size: 21px; font-weight: 700; line-height: 1.2; }
+.route-name { font-size: 15px; }
+.route-short { font-size: 13px; color: var(--ink-soft); white-space: nowrap; }
+.route-row.is-done { color: var(--ink-soft); }
+.route-row.is-done .route-short { color: var(--green); font-weight: 600; }
+.route-row.is-current { box-shadow: inset 5px 0 0 var(--ink); padding-left: 14px; }
+.route-row.is-current .route-name { font-weight: 700; }
+.route-note { margin-top: 8px; font-size: 13px; color: var(--ink-soft); }
+
+/* ── 游戏页 ─────────────────────────────────────────────── */
+.play {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding-bottom: 0;
+}
+
+/* 顶上这张牌就是血条：颜色即当前处境 */
+.band {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    margin: 0 -16px;
+    padding: 12px 16px 10px;
+    border-radius: 0 0 14px 14px;
+    background: var(--green);
+    color: #fff;
+    transform-origin: 50% 0;
+}
+.band[data-light="yellow"] { background: var(--yellow); color: var(--ink); }
+.band[data-light="red"] { background: var(--red); }
+.band.is-flipping { animation: flip 360ms ease-in-out; }
+@keyframes flip {
+    0%, 100% { transform: perspective(600px) rotateX(0); }
+    50% { transform: perspective(600px) rotateX(-88deg); }
+}
+.band-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.band-level { display: flex; flex-direction: column; min-width: 0; }
+.band-code { font-family: var(--num); font-size: 40px; font-weight: 700; line-height: 1; }
+.band-name { margin-top: 2px; font-size: 15px; font-weight: 600; }
+.band-light { display: flex; flex-direction: column; align-items: flex-end; flex: none; }
+/* 三张小牌垫一块白底，不然绿牌压在绿色的大牌上就看不见了 */
+.lamps {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    background: #fff;
+}
+.lamps li { width: 13px; height: 17px; border-radius: 2px; opacity: 0.22; }
+.lamps li[data-lamp="green"] { background: var(--green); }
+.lamps li[data-lamp="yellow"] { background: var(--yellow); }
+.lamps li[data-lamp="red"] { background: var(--red); }
+.lamps li.is-on { opacity: 1; transform: scale(1.2); }
+.band-left { margin-top: 4px; font-size: 14px; font-weight: 600; }
+.band-meta {
+    align-items: baseline;
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.45);
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+}
+.band[data-light="yellow"] .band-meta { border-top-color: rgba(21, 48, 42, 0.35); }
+.band-score { margin-left: auto; font-weight: 700; }
+
+.stage { flex: 1; padding: 22px 0 16px; }
+
+.dock {
+    position: sticky;
+    bottom: 0;
+    z-index: 4;
+    margin: 0 -16px;
+    padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
+    background: linear-gradient(to bottom, rgba(243, 245, 238, 0), var(--paper) 30%);
+}
+
+/* 过关与关卡介绍 */
+.cleared {
+    margin-bottom: 22px;
+    padding: 12px 14px;
+    border: 2px solid var(--ink);
+    border-radius: 10px;
+}
+.cleared-head { font-size: 22px; font-weight: 800; }
+.cleared-note { font-size: 15px; }
+.intro-name { font-size: 30px; line-height: 1.2; font-weight: 800; }
+.intro-gloss { margin: 4px 0 18px; font-size: 18px; color: var(--ink-soft); }
+.intro-fact { margin-bottom: 12px; font-size: 16px; }
+.intro-fact b { font-weight: 700; }
+.intro .route { margin-top: 22px; }
+
+/* 题目 */
+.quote {
+    position: relative;
+    margin-bottom: 24px;
+    padding: 14px 16px;
+    border: 2px solid var(--ink);
+    border-radius: 16px;
+    background: var(--sheet);
+    font-family: var(--kai);
+    font-size: 21px;
+    line-height: 1.55;
+}
+/* 气泡的小尾巴：让这句话读起来是有人在台上说的 */
+.quote::after {
+    content: "";
+    position: absolute;
+    left: 28px;
+    bottom: -11px;
+    width: 18px;
+    height: 18px;
+    border-right: 2px solid var(--ink);
+    border-bottom: 2px solid var(--ink);
+    background: var(--sheet);
+    transform: rotate(45deg) skew(12deg, 12deg);
+}
+.q-text { font-size: 20px; line-height: 1.5; font-weight: 700; }
+.q-hint { margin-top: 6px; font-size: 14px; color: var(--ink-soft); }
+
+/* 选项排成一张选票：例会上大家就是这样投最佳演讲者的 */
+.opts { margin-top: 16px; border-top: 2px solid var(--ink); }
+.opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    width: 100%;
+    padding: 14px 4px;
+    border: 0;
+    border-bottom: 1px solid var(--rule);
+    background: transparent;
+    text-align: left;
+    font-size: 17px;
+    line-height: 1.45;
+}
+.opt:not(:disabled):active { background: rgba(21, 48, 42, 0.07); }
+.opt-box {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 24px;
+    height: 24px;
+    margin-top: 1px;
+    border: 2px solid var(--ink);
+    border-radius: 4px;
+    background: var(--sheet);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 800;
+    line-height: 1;
+}
+.opt.is-right { font-weight: 700; }
+.opt.is-right .opt-box { border-color: var(--green); background: var(--green); }
+.opt.is-right .opt-box::after { content: "✓"; }
+.opt.is-wrong { color: var(--red); }
+.opt.is-wrong .opt-text { text-decoration: line-through; }
+.opt.is-wrong .opt-box { border-color: var(--red); background: var(--red); }
+.opt.is-wrong .opt-box::after { content: "✕"; }
+.opt.is-dim { opacity: 0.45; }
+
+/* 亮灯题 */
+.clock { display: flex; flex-direction: column; align-items: center; margin-bottom: 14px; }
+.clock-contest { font-size: 15px; color: var(--ink-soft); }
+.clock-time {
+    font-family: var(--num);
+    font-size: 92px;
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+}
+.lamp-opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; }
+.lamp-opt {
+    position: relative;
+    min-height: 88px;
+    border: 0;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 22px;
+    font-weight: 800;
+}
+.lamp-opt[data-value="green"] { background: var(--green); }
+.lamp-opt[data-value="yellow"] { background: var(--yellow); color: var(--ink); }
+.lamp-opt[data-value="red"] { background: var(--red); }
+.lamp-opt[data-value="none"] {
+    grid-column: 1 / -1;
+    min-height: 54px;
+    border: 2px dashed var(--ink);
+    background: transparent;
+    color: var(--ink);
+    font-size: 18px;
+}
+.lamp-opt:not(:disabled):active { transform: translateY(2px); }
+.lamp-opt.is-right { outline: 4px solid var(--ink); outline-offset: 2px; }
+.lamp-opt.is-right::after { content: " ✓"; }
+.lamp-opt.is-wrong { opacity: 0.6; text-decoration: line-through; }
+.lamp-opt.is-wrong::after { content: " ✕"; }
+.lamp-opt.is-dim { opacity: 0.3; }
+
+/* 排序题 */
+.slots { margin-top: 14px; border-top: 2px solid var(--ink); }
+.slot {
+    display: grid;
+    grid-template-columns: 70px 1fr;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--rule);
+}
+.slot-label { font-family: var(--num); font-size: 20px; font-weight: 700; }
+.slot-fill {
+    min-height: 40px;
+    padding: 6px 12px;
+    border: 2px dashed var(--rule);
+    border-radius: 8px;
+    background: transparent;
+    text-align: left;
+    font-size: 16px;
+}
+.slot-fill:not(:empty) { border: 2px solid var(--ink); background: var(--sheet); font-weight: 600; }
+.slot.is-right .slot-fill { border-color: var(--green); color: var(--green); }
+.slot.is-wrong .slot-fill {
+    border-color: var(--red);
+    color: var(--red);
+    text-decoration: line-through;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.chip {
+    padding: 9px 14px;
+    border: 2px solid var(--ink);
+    border-radius: 22px;
+    background: var(--sheet);
+    font-size: 16px;
+}
+.chip:active { background: var(--yellow); }
+
+/* 答题反馈 */
+.fb {
+    margin-top: 18px;
+    padding: 12px 14px 14px;
+    border-radius: 10px;
+    background: var(--sheet);
+    box-shadow: inset 0 5px 0 var(--green);
+    scroll-margin-bottom: 110px;
+}
+.fb-wrong { box-shadow: inset 0 5px 0 var(--red); }
+.fb-head { margin-top: 4px; font-size: 19px; font-weight: 800; color: var(--green); }
+.fb-wrong .fb-head { color: var(--red); }
+.fb-answer { margin-top: 2px; font-size: 17px; font-weight: 700; }
+.fb-explain { margin-top: 6px; font-size: 16px; }
+.fb-light { margin-top: 8px; font-size: 15px; font-weight: 700; color: var(--red); }
+.fb-src { display: inline-block; margin-top: 8px; font-size: 13px; color: var(--ink-soft); }
+
+/* ── 结果页 ─────────────────────────────────────────────── */
+.result { padding-top: 20px; }
+.shot {
+    padding: 22px 20px 16px;
+    border: 2px solid var(--ink);
+    border-radius: 6px;
+    background: var(--sheet);
+    text-align: center;
+}
+/* 奖花：例会上发给最佳演讲者的那种，颜色跟着这一局的表现走 */
+.rosette-wrap { --tone: var(--green); --tone-text: #fff; position: relative; height: 292px; }
+.rosette-wrap[data-tone="yellow"] { --tone: var(--yellow); --tone-text: var(--ink); }
+.rosette-wrap[data-tone="red"] { --tone: var(--red); }
+.rosette-wrap[data-tone="out"] { --tone: var(--ink); }
+.tail {
+    position: absolute;
+    top: 150px;
+    left: 50%;
+    width: 60px;
+    height: 140px;
+    background: var(--tone);
+    filter: brightness(0.82);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%);
+}
+.tail-left { transform: translateX(-76px) rotate(11deg); }
+.tail-right { transform: translateX(16px) rotate(-11deg); }
+.rosette {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 216px;
+    height: 216px;
+    margin-left: -108px;
+    background: var(--tone);
+    clip-path: polygon(
+        50.0% 0.0%, 56.5% 5.0%, 64.1% 2.0%, 68.9% 8.6%, 77.0% 7.9%, 79.8% 15.6%, 87.8% 17.3%,
+        88.3% 25.4%, 95.5% 29.2%, 93.7% 37.2%, 99.5% 42.9%, 95.5% 50.0%, 99.5% 57.1%,
+        93.7% 62.8%, 95.5% 70.8%, 88.3% 74.6%, 87.8% 82.7%, 79.8% 84.4%, 77.0% 92.1%,
+        68.9% 91.4%, 64.1% 98.0%, 56.5% 95.0%, 50.0% 100.0%, 43.5% 95.0%, 35.9% 98.0%,
+        31.1% 91.4%, 23.0% 92.1%, 20.2% 84.4%, 12.2% 82.7%, 11.7% 74.6%, 4.5% 70.8%,
+        6.3% 62.8%, 0.5% 57.1%, 4.5% 50.0%, 0.5% 42.9%, 6.3% 37.2%, 4.5% 29.2%, 11.7% 25.4%,
+        12.2% 17.3%, 20.2% 15.6%, 23.0% 7.9%, 31.1% 8.6%, 35.9% 2.0%, 43.5% 5.0%
+    );
+}
+.rosette-core {
+    position: absolute;
+    inset: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--sheet);
+    box-shadow: inset 0 0 0 3px var(--sheet), inset 0 0 0 5px var(--tone);
+}
+.rosette-top { font-size: 13px; letter-spacing: 0.2em; color: var(--ink-soft); }
+.rosette-title { margin: 2px 0 4px; font-size: 34px; line-height: 1.15; font-weight: 800; }
+.rosette-sub { font-size: 14px; font-weight: 600; }
+.shot.is-stamped .rosette { animation: pin 320ms cubic-bezier(0.2, 0.9, 0.3, 1.25) both; }
+@keyframes pin {
+    from { transform: scale(1.5) rotate(-14deg); opacity: 0; }
+    to { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+.tally { margin-top: 6px; border-top: 2px solid var(--ink); text-align: left; }
+.tally-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 8px 2px;
+    border-bottom: 1px dashed var(--rule);
+}
+.tally dt { font-size: 15px; color: var(--ink-soft); }
+.tally dd {
+    font-family: var(--num);
+    font-size: 22px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.shot-line { margin-top: 14px; font-size: 16px; font-weight: 600; text-align: left; }
+.shot-foot { margin-top: 12px; font-size: 12px; color: var(--ink-soft); text-align: left; }
+.share-hint { margin: 12px 0; text-align: center; font-size: 14px; color: var(--ink-soft); }
+
+.review { margin-top: 30px; }
+.review-title { font-size: 20px; font-weight: 800; }
+.review-list { margin-top: 8px; border-top: 2px solid var(--ink); }
+.review-item { padding: 12px 0; border-bottom: 1px solid var(--rule); }
+.review-quote { font-family: var(--kai); font-size: 17px; }
+.review-q { font-size: 16px; font-weight: 700; }
+.review-a { margin-top: 2px; font-size: 16px; font-weight: 700; color: var(--green); }
+.review-explain { margin-top: 2px; font-size: 15px; color: var(--ink-soft); }
+
+@media (prefers-reduced-motion: reduce) {
+    .band.is-flipping, .shot.is-stamped .rosette { animation: none; }
+}
