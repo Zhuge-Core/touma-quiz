@@ -1,7 +1,7 @@
 (() => {
     'use strict';
 
-    const { sources, levels, questions } = window.TM_QUIZ;
+    const { sources, levels, questions, roleNames } = window.TM_QUIZ;
 
     const LIGHTS = [
         { key: 'green', name: '绿牌', left: '还能错 2 次' },
@@ -15,8 +15,14 @@
         { value: 'none', label: '还不用亮灯' },
     ];
     const BEST_KEY = 'tm-quiz-best';
+    const WRONG_KEY = 'tm-quiz-wrong';
     const FLIP_MS = 360;
+    // 闯关每关至少抽 2 道考“这一级真实要求”的题，知识卡讲过的内容才考得到
+    const CORE_QUOTA = 2;
+    // 闯关里答对不会清错题，优先出的错题每关封顶 2 道，免得每局都是同样几道
+    const WRONG_QUOTA = 2;
     const TOTAL = levels.reduce((sum, level) => sum + level.pick, 0);
+    const WRONG_STAGE = { code: '错题本', name: '只练答错过的题' };
 
     const $ = (selector) => document.querySelector(selector);
     const make = (tag, className, text) => {
@@ -24,6 +30,12 @@
         if (className) node.className = className;
         if (text !== undefined) node.textContent = text;
         return node;
+    };
+    const makeButton = (className, text, action) => {
+        const button = make('button', className, text);
+        button.type = 'button';
+        if (action) button.addEventListener('click', action);
+        return button;
     };
     const shuffle = (list) => {
         const copy = [...list];
@@ -42,45 +54,101 @@
     let state = null;
     let dockAction = null;
 
-    // 双击打开的 file:// 页面或隐私模式下 localStorage 可能直接抛错，最高分丢了也不该影响游戏
-    const readBest = () => {
+    // 双击打开的 file:// 页面或隐私模式下 localStorage 可能直接抛错，记录丢了也不该影响答题
+    const readStore = (key) => {
         try {
-            return Number(window.localStorage.getItem(BEST_KEY)) || 0;
+            return window.localStorage.getItem(key);
         } catch (error) {
-            return 0;
+            return null;
         }
     };
-    const writeBest = (score) => {
+    const writeStore = (key, value) => {
         try {
-            window.localStorage.setItem(BEST_KEY, String(score));
+            window.localStorage.setItem(key, value);
         } catch (error) {
             /* 存不了就算了 */
         }
     };
+    const readBest = () => Number(readStore(BEST_KEY)) || 0;
 
-    const drawLevel = (level) => {
-        const pool = questions.filter((item) => item.level === level.id);
-        const must = pool.filter((item) => item.must);
-        const rest = shuffle(pool.filter((item) => !item.must));
-        return shuffle([...must, ...rest].slice(0, level.pick));
+    const loadWrong = () => {
+        let ids = [];
+        try {
+            ids = JSON.parse(readStore(WRONG_KEY) || '[]');
+        } catch (error) {
+            ids = [];
+        }
+        // 题库改过之后，旧记录里可能有已经删掉的题号
+        const known = new Set(questions.map((item) => item.id));
+        return new Set((Array.isArray(ids) ? ids : []).filter((id) => known.has(id)));
+    };
+    const saveWrong = (wrong) => writeStore(WRONG_KEY, JSON.stringify([...wrong]));
+    const markWrong = (id) => saveWrong(loadWrong().add(id));
+    const clearWrong = (id) => {
+        const wrong = loadWrong();
+        const had = wrong.delete(id);
+        if (had) saveWrong(wrong);
+        return had;
     };
 
-    const newState = () => ({
-        deck: levels.map(drawLevel),
-        levelIndex: 0,
+    const withAlias = (text) => (roleNames[text] ? `${text}（${roleNames[text]}）` : text);
+    const promptOf = (question) => (question.type === 'light'
+        ? `${question.contest}，讲到 ${question.clock} 该亮什么灯？`
+        : question.q);
+    const answerOf = (question) => {
+        if (question.type === 'light') {
+            return LAMPS.find((lamp) => lamp.value === question.answer).label;
+        }
+        if (question.type === 'order') return question.items.join(' → ');
+        return withAlias(question.options[0]);
+    };
+
+    // 答错过的排前面，其余随机
+    const missedFirst = (list, wrong) => {
+        const mixed = shuffle(list);
+        return [
+            ...mixed.filter((item) => wrong.has(item.id)),
+            ...mixed.filter((item) => !wrong.has(item.id)),
+        ];
+    };
+
+    const drawLevel = (level, wrong) => {
+        const pool = questions.filter((item) => item.level === level.id);
+        const picked = pool.filter((item) => item.must);
+        let wrongLeft = WRONG_QUOTA;
+        const take = (candidates, count) => {
+            const free = shuffle(candidates.filter((item) => !picked.includes(item)));
+            const missed = free.filter((item) => wrong.has(item.id)).slice(0, wrongLeft);
+            const chosen = [...missed, ...free.filter((item) => !missed.includes(item))]
+                .slice(0, Math.max(count, 0));
+            wrongLeft -= chosen.filter((item) => missed.includes(item)).length;
+            picked.push(...chosen);
+        };
+        const coreCount = Math.min(CORE_QUOTA, level.pick - picked.length);
+        take(pool.filter((item) => item.core), coreCount);
+        take(pool, level.pick - picked.length);
+        return shuffle(picked);
+    };
+
+    const newState = (mode, stages) => ({
+        mode,
+        stages,
+        stageIndex: 0,
         questionIndex: 0,
         light: 0,
         combo: 0,
         maxCombo: 0,
         score: 0,
         correct: 0,
-        levelCorrect: 0,
+        stageCorrect: 0,
         misses: [],
         out: false,
     });
+    const isChallenge = () => state.mode === 'challenge';
+    const currentStage = () => state.stages[state.stageIndex];
 
     const showScreen = (id) => {
-        ['start', 'play', 'result'].forEach((name) => {
+        ['start', 'pick', 'play', 'result'].forEach((name) => {
             $(`#${name}`).hidden = name !== id;
         });
         window.scrollTo(0, 0);
@@ -111,13 +179,17 @@
     };
 
     const paintBand = (progress) => {
-        const level = levels[state.levelIndex];
+        const { level } = currentStage();
+        const challenge = isChallenge();
         $('#band-code').textContent = level.code;
         $('#band-name').textContent = level.name;
-        $('#band-left').textContent = LIGHTS[state.light].left;
         $('#band-progress').textContent = progress;
-        $('#band-combo').textContent = state.combo >= 2 ? `连对 ${state.combo} 题` : '';
+        $('#lamps').hidden = !challenge;
+        $('#band-left').textContent = challenge ? LIGHTS[state.light].left : '练习，不扣命';
+        $('#band-combo').textContent = challenge && state.combo >= 2 ? `连对 ${state.combo} 题` : '';
+        $('#band-score').hidden = !challenge;
         $('#band-score').textContent = `${state.score} 分`;
+        $('#band-exit').hidden = challenge;
         document.querySelectorAll('#lamps li').forEach((lamp, index) => {
             lamp.classList.toggle('is-on', index === state.light);
         });
@@ -131,84 +203,164 @@
         band.classList.add('is-flipping');
         // 牌翻到侧面看不见的那一刻换颜色
         window.setTimeout(() => {
-            band.dataset.light = key;
+            if (isChallenge()) band.dataset.light = key;
         }, FLIP_MS / 2);
     };
 
-    const sourceLink = (key) => {
-        const source = sources[key];
-        if (!source) return null;
-        const link = make('a', 'fb-src', `出处：${source.name}`);
-        link.href = source.url;
-        link.target = '_blank';
-        link.rel = 'noopener';
-        return link;
+    const buildSources = (keys) => {
+        const line = make('p', 'src-line', '出处：');
+        keys.filter((key) => sources[key]).forEach((key, index) => {
+            if (index > 0) line.append('、');
+            const link = make('a', '', sources[key].name);
+            link.href = sources[key].url;
+            link.target = '_blank';
+            link.rel = 'noopener';
+            line.append(link);
+        });
+        return line;
+    };
+
+    const copyText = (text) => {
+        // 老办法兜底：新接口在 file:// 页面、内嵌网页或没有焦点时会拒绝
+        const legacy = () => {
+            const area = make('textarea', 'copy-area');
+            area.value = text;
+            area.setAttribute('readonly', '');
+            document.body.append(area);
+            area.select();
+            let copied = false;
+            try {
+                copied = document.execCommand('copy');
+            } catch (error) {
+                copied = false;
+            }
+            area.remove();
+            return copied;
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(text).then(() => true, legacy);
+        }
+        return Promise.resolve(legacy());
+    };
+
+    const buildReport = (question) => {
+        const wrap = make('div', 'report');
+        const status = make('p', 'report-status');
+        status.setAttribute('role', 'status');
+        status.hidden = true;
+        const button = makeButton('report-button', '这题有问题', () => {
+            const lines = ['头马闯关纠错', `题号：${question.id}`];
+            if (question.quote) lines.push(`台词：${question.quote}`);
+            lines.push(`题干：${promptOf(question)}`);
+            copyText(lines.join('\n')).then((copied) => {
+                status.textContent = copied
+                    ? '已复制，发给俱乐部管理员。'
+                    : `复制不了。请把题号 ${question.id} 抄下来，发给俱乐部管理员。`;
+                status.hidden = false;
+            });
+        });
+        wrap.append(button, status);
+        return wrap;
+    };
+
+    const buildDetail = (question, open) => {
+        const detail = make('details', 'detail');
+        detail.open = open;
+        detail.append(make('summary', '', '展开讲讲'), make('p', 'detail-text', question.detail));
+        return detail;
+    };
+
+    const buildReviewItem = (question) => {
+        const item = make('li', 'review-item');
+        if (question.quote) item.append(make('p', 'review-quote', `“${question.quote}”`));
+        item.append(
+            make('p', 'review-q', promptOf(question)),
+            make('p', 'review-a', `正确答案：${answerOf(question)}`),
+            make('p', 'review-explain', question.explain),
+            make('p', 'review-detail', question.detail),
+            buildSources(question.src),
+            buildReport(question),
+        );
+        return item;
     };
 
     const nextStep = () => {
-        const deck = state.deck[state.levelIndex];
+        const deck = currentStage().questions;
         if (state.out) {
             showResult();
         } else if (state.questionIndex < deck.length - 1) {
             state.questionIndex += 1;
             showQuestion();
         } else {
-            finishLevel();
+            finishStage();
         }
     };
 
-    const settle = (question, isRight, answerText, box) => {
-        const deck = state.deck[state.levelIndex];
+    const settle = (question, isRight, box) => {
+        const deck = currentStage().questions;
+        const challenge = isChallenge();
         const isLastQuestion = state.questionIndex === deck.length - 1;
-        const isLastLevel = state.levelIndex === levels.length - 1;
+        const isLastStage = state.stageIndex === state.stages.length - 1;
         const feedback = make('div', `fb ${isRight ? 'fb-right' : 'fb-wrong'}`);
+        const notes = [];
         feedback.setAttribute('role', 'status');
 
         if (isRight) {
             state.combo += 1;
             state.maxCombo = Math.max(state.maxCombo, state.combo);
             state.correct += 1;
-            state.levelCorrect += 1;
-            const gain = 100 + Math.min(state.combo - 1, 5) * 10;
-            state.score += gain;
-            const streak = state.combo >= 2 ? `，连对 ${state.combo} 题` : '';
-            feedback.append(make('p', 'fb-head', `答对了，+${gain} 分${streak}`));
+            state.stageCorrect += 1;
+            let head = '答对了';
+            if (challenge) {
+                const gain = 100 + Math.min(state.combo - 1, 5) * 10;
+                state.score += gain;
+                head += `，+${gain} 分${state.combo >= 2 ? `，连对 ${state.combo} 题` : ''}`;
+            } else if (clearWrong(question.id)) {
+                notes.push(make('p', 'fb-note', '这道题已从错题本里移除。'));
+            }
+            feedback.append(make('p', 'fb-head', head));
         } else {
             state.combo = 0;
-            state.misses.push({ question, answerText });
+            state.misses.push(question);
+            markWrong(question.id);
             feedback.append(
                 make('p', 'fb-head', '答错了'),
-                make('p', 'fb-answer', `正确答案：${answerText}`),
+                make('p', 'fb-answer', `正确答案：${answerOf(question)}`),
             );
-        }
-        feedback.append(make('p', 'fb-explain', question.explain));
-
-        if (!isRight) {
-            if (state.light === LIGHTS.length - 1) {
+            if (!challenge) {
+                notes.push(make('p', 'fb-note', '已记入错题本，可以在首页“只练错题”里再练。'));
+            } else if (state.light === LIGHTS.length - 1) {
                 state.out = true;
-                feedback.append(make('p', 'fb-light', '红牌时又错一题，铃响了，这一局到此为止。'));
+                notes.push(make('p', 'fb-light', '红牌时又错一题，铃响了，这一局到此为止。'));
             } else {
                 state.light += 1;
                 flipBand();
                 const light = LIGHTS[state.light];
-                feedback.append(make('p', 'fb-light', `计时员举起了${light.name}，${light.left}。`));
+                notes.push(make('p', 'fb-light', `计时员举起了${light.name}，${light.left}。`));
             }
         }
-        const link = sourceLink(question.src);
-        if (link) feedback.append(link);
+        feedback.append(
+            make('p', 'fb-explain', question.explain),
+            ...notes,
+            // 练习就是来学的，讲解一直摊开；闯关里答对了先折起来，不打断节奏
+            buildDetail(question, !isRight || !challenge),
+            buildSources(question.src),
+            buildReport(question),
+        );
 
         box.append(feedback);
         paintBand(`第 ${state.questionIndex + 1} / ${deck.length} 题`);
 
         let label = '下一题';
-        if (state.out || (isLastQuestion && isLastLevel)) label = '看结果';
-        else if (isLastQuestion) label = '过关';
+        if (challenge && (state.out || (isLastQuestion && isLastStage))) label = '看结果';
+        else if (challenge && isLastQuestion) label = '过关';
+        else if (isLastQuestion) label = '看小结';
         setDock(label, nextStep);
         feedback.scrollIntoView({ block: 'nearest' });
     };
 
     const lock = (box) => {
-        box.querySelectorAll('button').forEach((button) => {
+        box.querySelectorAll('.opt, .lamp-opt, .chip, .slot-fill').forEach((button) => {
             button.disabled = true;
         });
     };
@@ -217,18 +369,18 @@
         const [rightText] = question.options;
         const list = make('div', 'opts');
         shuffle(question.options).forEach((text) => {
-            const option = make('button', 'opt');
-            option.type = 'button';
-            option.append(make('span', 'opt-box'), make('span', 'opt-text', text));
+            const option = makeButton('opt');
+            // 判定用题库里的原文，显示时才加中文叫法，两者互不影响
+            option.dataset.right = text === rightText ? '1' : '0';
+            option.append(make('span', 'opt-box'), make('span', 'opt-text', withAlias(text)));
             option.addEventListener('click', () => {
                 lock(box);
                 list.querySelectorAll('.opt').forEach((other) => {
-                    const otherText = other.querySelector('.opt-text').textContent;
-                    if (otherText === rightText) other.classList.add('is-right');
+                    if (other.dataset.right === '1') other.classList.add('is-right');
                     else if (other === option) other.classList.add('is-wrong');
                     else other.classList.add('is-dim');
                 });
-                settle(question, text === rightText, rightText, box);
+                settle(question, text === rightText, box);
             });
             list.append(option);
         });
@@ -242,10 +394,8 @@
             make('span', 'clock-time', question.clock),
         );
         const list = make('div', 'lamp-opts');
-        const rightLamp = LAMPS.find((lamp) => lamp.value === question.answer);
         LAMPS.forEach((lamp) => {
-            const option = make('button', 'lamp-opt', lamp.label);
-            option.type = 'button';
+            const option = makeButton('lamp-opt', lamp.label);
             option.dataset.value = lamp.value;
             option.addEventListener('click', () => {
                 lock(box);
@@ -254,7 +404,7 @@
                     else if (other === option) other.classList.add('is-wrong');
                     else other.classList.add('is-dim');
                 });
-                settle(question, lamp.value === question.answer, rightLamp.label, box);
+                settle(question, lamp.value === question.answer, box);
             });
             list.append(option);
         });
@@ -280,32 +430,26 @@
                 const isRight = picked[index] === question.items[index];
                 slot.classList.add(isRight ? 'is-right' : 'is-wrong');
             });
-            const isRight = picked.every((item, index) => item === question.items[index]);
-            settle(question, isRight, question.items.join(' → '), box);
+            settle(question, picked.every((item, index) => item === question.items[index]), box);
         };
 
         const paint = () => {
             slots.replaceChildren(...labels.map((label, index) => {
                 const slot = make('li', 'slot');
-                const fill = make('button', 'slot-fill', picked[index] || '');
-                fill.type = 'button';
-                fill.disabled = !picked[index];
-                fill.addEventListener('click', () => {
+                const fill = makeButton('slot-fill', picked[index] || '', () => {
                     picked.splice(index, 1);
                     paint();
                 });
+                fill.disabled = !picked[index];
                 slot.append(make('span', 'slot-label', label), fill);
                 return slot;
             }));
-            chips.replaceChildren(...pool.filter((item) => !picked.includes(item)).map((item) => {
-                const chip = make('button', 'chip', item);
-                chip.type = 'button';
-                chip.addEventListener('click', () => {
+            chips.replaceChildren(...pool.filter((item) => !picked.includes(item)).map((item) => (
+                makeButton('chip', item, () => {
                     picked.push(item);
                     paint();
-                });
-                return chip;
-            }));
+                })
+            )));
             if (picked.length === size) setDock('就按这个顺序', submit);
             else hideDock();
         };
@@ -320,7 +464,7 @@
     };
 
     const showQuestion = () => {
-        const deck = state.deck[state.levelIndex];
+        const deck = currentStage().questions;
         const question = deck[state.questionIndex];
         const box = make('article', 'question');
         box.dataset.qid = question.id;
@@ -340,10 +484,20 @@
         window.scrollTo(0, 0);
     };
 
+    const buildKnowCard = (level) => {
+        const card = make('section', 'know');
+        const list = make('ul', 'know-list');
+        level.card.forEach((point) => list.append(make('li', '', point)));
+        card.append(make('h3', 'know-title', `${level.code} 要做什么`), list);
+        if (level.note) card.append(make('p', 'know-note', level.note));
+        card.append(buildSources(level.src));
+        return card;
+    };
+
     const showIntro = (summary) => {
-        const level = levels[state.levelIndex];
+        const { level, questions: deck } = currentStage();
         const intro = make('div', 'intro');
-        paintBand(`共 ${level.pick} 题`);
+        paintBand(`共 ${deck.length} 题`);
 
         if (summary) {
             const cleared = make('div', 'cleared');
@@ -357,31 +511,83 @@
             intro.append(cleared);
         }
 
-        const real = make('p', 'intro-fact');
-        real.append(make('b', '', `真实的 ${level.code}：`), level.real);
         const theme = make('p', 'intro-fact');
-        theme.append(make('b', '', '这一关考：'), level.theme);
-        const route = make('ol', 'route');
-        renderRoute(route, state.levelIndex);
+        theme.append(make('b', '', '这一关还会考：'), level.theme);
         intro.append(
             make('h2', 'intro-name', level.name),
             make('p', 'intro-gloss', level.gloss),
-            real,
+            buildKnowCard(level),
             theme,
-            route,
         );
+        if (isChallenge()) {
+            const route = make('ol', 'route');
+            renderRoute(route, state.stageIndex);
+            intro.append(route);
+        }
 
         stage.replaceChildren(intro);
-        setDock(`开始 ${level.code}`, showQuestion);
+        setDock(isChallenge() ? `开始 ${level.code}` : `开始练习 ${level.code}`, showQuestion);
         window.scrollTo(0, 0);
     };
 
-    const finishLevel = () => {
-        const level = levels[state.levelIndex];
-        const total = state.deck[state.levelIndex].length;
-        const summary = { code: level.code, total, correct: state.levelCorrect };
+    const showPracticeDone = () => {
+        const { level, questions: deck } = currentStage();
+        const wrong = loadWrong();
+        const done = make('div', 'done');
+        const missed = state.misses.length;
+        const lines = [`${deck.length} 题答对 ${state.correct} 题。`];
+        if (state.mode === 'wrong') {
+            lines.push(wrong.size > 0 ? `错题本里还剩 ${wrong.size} 道。` : '错题本清空了。');
+        } else if (missed > 0) {
+            lines.push(`答错的 ${missed} 题记进了错题本。`);
+        }
+        done.append(
+            make('h2', 'done-title', state.mode === 'wrong' ? '错题练完一轮' : `${level.code} 练完了`),
+            make('p', 'done-note', lines.join('')),
+        );
 
-        if (state.levelCorrect === total) {
+        const actions = make('div', 'done-actions');
+        const levelIndex = levels.indexOf(level);
+        if (state.mode === 'practice' && levelIndex < levels.length - 1) {
+            const next = levels[levelIndex + 1];
+            actions.append(makeButton('primary', `练下一关：${next.code}`, () => {
+                startPractice(levelIndex + 1);
+            }));
+        }
+        if (wrong.size > 0) {
+            const label = `只练错题（${wrong.size} 道）`;
+            const kind = state.mode === 'wrong' ? 'primary' : 'secondary';
+            actions.append(makeButton(kind, label, startWrong));
+        }
+        if (state.mode === 'practice') {
+            actions.append(makeButton('secondary', `再练一遍 ${level.code}`, () => {
+                startPractice(levelIndex);
+            }));
+        }
+        actions.append(makeButton('secondary', '回首页', showStart));
+        done.append(actions);
+
+        if (missed > 0) {
+            const list = make('ol', 'review-list');
+            list.append(...state.misses.map(buildReviewItem));
+            done.append(make('h3', 'review-title', '这一轮答错的题'), list);
+        }
+
+        paintBand('练完了');
+        hideDock();
+        stage.replaceChildren(done);
+        window.scrollTo(0, 0);
+    };
+
+    const finishStage = () => {
+        if (!isChallenge()) {
+            showPracticeDone();
+            return;
+        }
+        const { level, questions: deck } = currentStage();
+        const summary = { code: level.code, total: deck.length, correct: state.stageCorrect };
+
+        if (state.stageCorrect === deck.length) {
             summary.bonus = 100;
             state.score += summary.bonus;
         }
@@ -391,25 +597,25 @@
             state.light = 0;
             flipBand();
         }
-        state.levelCorrect = 0;
+        state.stageCorrect = 0;
         state.questionIndex = 0;
 
-        if (state.levelIndex === levels.length - 1) {
+        if (state.stageIndex === state.stages.length - 1) {
             showResult();
         } else {
-            state.levelIndex += 1;
+            state.stageIndex += 1;
             showIntro(summary);
         }
     };
 
     const verdict = () => {
-        const level = levels[state.levelIndex];
+        const { level } = currentStage();
         if (state.out) {
             return {
                 tone: 'out',
                 title: '铃响下台',
                 sub: `止步 ${level.code}`,
-                line: `这次停在 ${level.code}。错题就在下面，看完再来。`,
+                line: `这次停在 ${level.code}。答错的题和讲解就在下面，看完再来。`,
             };
         }
         const line = '纸上 DTM 到手。真的 DTM，还得把那六项要求一项项做完。';
@@ -429,7 +635,7 @@
         const outcome = verdict();
         const best = readBest();
         const isNewBest = state.score > best;
-        if (isNewBest) writeBest(state.score);
+        if (isNewBest) writeStore(BEST_KEY, String(state.score));
 
         $('#rosette').dataset.tone = outcome.tone;
         $('#result-title').textContent = outcome.title;
@@ -448,24 +654,15 @@
             return row;
         }));
 
+        const wrong = loadWrong();
         $('#review').hidden = state.misses.length === 0;
-        $('#review-list').replaceChildren(...state.misses.map(({ question, answerText }) => {
-            const item = make('li', 'review-item');
-            const prompt = question.type === 'light'
-                ? `${question.contest}，讲到 ${question.clock} 该亮什么灯？`
-                : question.q;
-            if (question.quote) item.append(make('p', 'review-quote', `“${question.quote}”`));
-            item.append(
-                make('p', 'review-q', prompt),
-                make('p', 'review-a', `正确答案：${answerText}`),
-                make('p', 'review-explain', question.explain),
-            );
-            return item;
-        }));
+        $('#review-list').replaceChildren(...state.misses.map(buildReviewItem));
+        $('#result-wrong').hidden = wrong.size === 0;
+        $('#result-wrong').textContent = `只练错题（${wrong.size} 道）`;
 
         hideDock();
         showScreen('result');
-        // 先摘再别，「再来一局」之后奖花才会重新落下来
+        // 先摘再别，“再来一局”之后奖花才会重新落下来
         const shot = $('#shot');
         shot.classList.remove('is-stamped');
         void shot.offsetWidth;
@@ -474,25 +671,79 @@
 
     const showStart = () => {
         const best = readBest();
+        const wrong = loadWrong();
         $('#best').hidden = best === 0;
-        $('#best').textContent = `你的最高分：${best} 分`;
+        $('#best').textContent = `闯关最高分：${best} 分`;
+        $('#wrong-button').disabled = wrong.size === 0;
+        $('#wrong-button').textContent = wrong.size > 0 ? `只练错题（${wrong.size} 道）` : '只练错题';
+        $('#wrong-note').textContent = wrong.size > 0
+            ? '答错过的题都记在这台设备上。在这里答对一道，就划掉一道。'
+            : '现在还没有错题。闯关或练习时答错的题，会记在这台设备上。';
         renderRoute($('#start-route'), -1);
         showScreen('start');
     };
 
-    const startGame = () => {
-        state = newState();
+    const showPick = () => {
+        const wrong = loadWrong();
+        $('#pick-list').replaceChildren(...levels.map((level, index) => {
+            const pool = questions.filter((item) => item.level === level.id);
+            const missed = pool.filter((item) => wrong.has(item.id)).length;
+            const row = make('li', 'pick-row');
+            const button = makeButton('pick-button', undefined, () => startPractice(index));
+            const count = make('span', 'pick-count', `${pool.length} 题`);
+            if (missed > 0) count.append(make('em', '', `错过 ${missed} 题`));
+            const text = make('span', 'pick-text');
+            text.append(make('b', '', level.name), make('span', '', level.short));
+            button.append(make('span', 'pick-code', level.code), text, count);
+            row.append(button);
+            return row;
+        }));
+        showScreen('pick');
+    };
+
+    const begin = (mode, stages, withIntro) => {
+        state = newState(mode, stages);
         band.classList.remove('is-flipping');
-        band.dataset.light = LIGHTS[0].key;
+        band.dataset.light = mode === 'challenge' ? LIGHTS[0].key : 'practice';
         showScreen('play');
-        showIntro(null);
+        if (withIntro) showIntro(null);
+        else showQuestion();
+    };
+
+    const startChallenge = () => {
+        const wrong = loadWrong();
+        const stages = levels.map((level) => ({ level, questions: drawLevel(level, wrong) }));
+        begin('challenge', stages, true);
+    };
+
+    const startPractice = (levelIndex) => {
+        const level = levels[levelIndex];
+        const pool = questions.filter((item) => item.level === level.id);
+        begin('practice', [{ level, questions: missedFirst(pool, loadWrong()) }], true);
+    };
+
+    const startWrong = () => {
+        const wrong = loadWrong();
+        // 按关卡顺序出，同一关的错题挨在一起，复习起来不跳
+        const deck = questions.filter((item) => wrong.has(item.id));
+        if (deck.length === 0) {
+            showStart();
+            return;
+        }
+        begin('wrong', [{ level: WRONG_STAGE, questions: deck }], false);
     };
 
     dockButton.addEventListener('click', () => {
         if (dockAction) dockAction();
     });
-    $('#start-button').addEventListener('click', startGame);
-    $('#again-button').addEventListener('click', startGame);
+    $('#challenge-button').addEventListener('click', startChallenge);
+    $('#practice-button').addEventListener('click', showPick);
+    $('#wrong-button').addEventListener('click', startWrong);
+    $('#pick-back').addEventListener('click', showStart);
+    $('#band-exit').addEventListener('click', showStart);
+    $('#again-button').addEventListener('click', startChallenge);
+    $('#result-wrong').addEventListener('click', startWrong);
+    $('#result-home').addEventListener('click', showStart);
 
     showStart();
 })();

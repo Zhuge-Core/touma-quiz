@@ -11,28 +11,49 @@
 
     <section class="screen start" id="start">
         <h1 class="start-title">头马闯关</h1>
-        <p class="start-sub">从 Level 1 一路答到 DTM，六关 25 题，大约 5 分钟。</p>
+        <p class="start-sub">考一考，也学一学：从 Level 1 到 DTM 的头马知识，每道题都有讲解。</p>
 
         <div class="cards" aria-hidden="true">
             <div class="card card-green"><span>开局</span><b>绿牌</b></div>
             <div class="card card-yellow"><span>答错一题</span><b>黄牌</b></div>
             <div class="card card-red"><span>再错一题</span><b>红牌</b></div>
         </div>
-        <p class="start-rule">
-            开局是绿牌，答错一题变黄牌，再错变红牌。红牌时再答错，铃响下台。每过一关，换回绿牌。
-        </p>
 
-        <button class="primary" id="start-button" type="button">开始闯关</button>
+        <div class="modes">
+            <button class="mode mode-challenge" id="challenge-button" type="button">
+                <b>闯关</b>
+                <span>六关 25 题，约 5 分钟。红牌时再答错就铃响下台，过一关换回绿牌。记分，出结果卡。</span>
+            </button>
+            <button class="mode mode-practice" id="practice-button" type="button">
+                <b>练习</b>
+                <span>不扣命，不计分。先看这一级要做什么，再把这一关的题全部刷一遍，每题都有讲解。</span>
+            </button>
+        </div>
+        <button class="secondary" id="wrong-button" type="button">只练错题</button>
+        <p class="wrong-note" id="wrong-note"></p>
         <p class="best" id="best" hidden></p>
 
-        <h2 class="route-title">今天的议程</h2>
+        <h2 class="route-title">六关议程</h2>
         <ol class="route" id="start-route"></ol>
-        <p class="route-note">每关考什么是这个游戏自己排的，不代表真实 Level 里的项目内容。</p>
+        <p class="route-note">
+            每关开头先讲这一级真实要做什么，再考。右边一栏是这一关另外会考的主题，是游戏自己排的，不代表真实
+            Level 里的项目内容。
+        </p>
+        <p class="route-note">
+            角色英文名后面括号里的中文，例如 Timer（时间官），是国内俱乐部的常见叫法，不是官方译名。
+        </p>
 
         <p class="disclaimer">
-            非官方学习工具，俱乐部会员自制，与 Toastmasters International 无关。
-            题目核对于 2026 年 11 月，规则以 toastmasters.org 当前页面为准。
+            非官方学习工具，俱乐部会员自制，与 Toastmasters International 无关。题目核对于
+            2026 年 11 月，规则以 toastmasters.org 当前页面为准。
         </p>
+    </section>
+
+    <section class="screen pick" id="pick" hidden>
+        <button class="text-button" id="pick-back" type="button">回首页</button>
+        <h1 class="pick-title">练习模式</h1>
+        <p class="pick-sub">挑一关。不扣命，不计分，这一关的题全部过一遍，答错的会记进错题本。</p>
+        <ol class="pick-list" id="pick-list"></ol>
     </section>
 
     <section class="screen play" id="play" hidden>
@@ -55,6 +76,7 @@
                 <span id="band-progress"></span>
                 <span id="band-combo"></span>
                 <span class="band-score" id="band-score"></span>
+                <button class="band-exit" id="band-exit" type="button" hidden>回首页</button>
             </div>
         </header>
         <div class="stage" id="stage"></div>
@@ -81,9 +103,14 @@
             <p class="shot-foot" id="result-foot"></p>
         </div>
         <p class="share-hint">截图发到群里，喊人来挑战。</p>
-        <button class="primary" id="again-button" type="button">再来一局</button>
+        <div class="result-actions">
+            <button class="primary" id="again-button" type="button">再来一局</button>
+            <button class="secondary" id="result-wrong" type="button" hidden></button>
+            <button class="secondary" id="result-home" type="button">回首页</button>
+        </div>
         <section class="review" id="review" hidden>
-            <h2 class="review-title">错题回顾</h2>
+            <h2 class="review-title">这一局答错的题</h2>
+            <p class="review-sub">每道题下面是完整讲解。这些题已经记进错题本。</p>
             <ol class="review-list" id="review-list"></ol>
         </section>
         <p class="disclaimer">

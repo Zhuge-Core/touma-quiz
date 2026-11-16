@@ -48,16 +48,36 @@ ol { list-style: none; }
     letter-spacing: 0.04em;
 }
 .primary:active { transform: translateY(1px); }
+.secondary {
+    display: block;
+    width: 100%;
+    min-height: 50px;
+    padding: 10px 16px;
+    border: 2px solid var(--ink);
+    border-radius: 10px;
+    background: transparent;
+    font-size: 17px;
+    font-weight: 600;
+}
+.secondary:disabled { border-color: var(--rule); color: var(--ink-soft); }
+.text-button {
+    padding: 8px 0;
+    border: 0;
+    background: transparent;
+    font-size: 15px;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
 
 .disclaimer { margin-top: 28px; font-size: 13px; line-height: 1.7; color: var(--ink-soft); }
 
 /* ── 开始页 ─────────────────────────────────────────────── */
 .start { padding-top: 36px; }
 .start-title { font-size: 60px; line-height: 1.05; font-weight: 800; letter-spacing: 0.03em; }
-.start-sub { margin-top: 10px; font-size: 17px; }
+.start-sub { margin-top: 10px; font-size: 16px; }
 
 /* 三张计时牌就是规则说明：看一眼就知道答错的代价 */
-.cards { display: flex; justify-content: center; margin: 34px 0 26px; }
+.cards { display: flex; justify-content: center; margin: 26px 0 30px; }
 .card {
     display: flex;
     flex-direction: column;
@@ -79,8 +99,50 @@ ol { list-style: none; }
     transform: rotate(2deg);
 }
 .card-red { background: var(--red); color: #fff; transform: rotate(8deg) translateY(10px); }
-.start-rule { margin-bottom: 22px; font-size: 15px; }
-.best { margin-top: 10px; text-align: center; font-size: 14px; color: var(--ink-soft); }
+
+/* 闯关和练习是并排的两个入口：一个考，一个学，谁也不是谁的附属 */
+.modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.mode {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px 12px 14px;
+    border: 2px solid var(--ink);
+    border-radius: 12px;
+    text-align: left;
+}
+.mode b { font-size: 26px; line-height: 1.15; font-weight: 800; letter-spacing: 0.06em; }
+.mode span { font-size: 13.5px; line-height: 1.55; }
+.mode-challenge { background: var(--ink); color: #fff; }
+.mode-practice { background: var(--sheet); }
+.mode:active { transform: translateY(1px); }
+.wrong-note { margin-top: 6px; font-size: 13px; color: var(--ink-soft); }
+.best { margin-top: 10px; font-size: 14px; color: var(--ink-soft); }
+
+/* ── 练习选关 ───────────────────────────────────────────── */
+.pick { padding-top: 14px; }
+.pick-title { margin-top: 6px; font-size: 40px; line-height: 1.15; font-weight: 800; }
+.pick-sub { margin: 8px 0 18px; font-size: 15px; }
+.pick-list { border-top: 2px solid var(--ink); }
+.pick-row { border-bottom: 1px solid var(--rule); }
+.pick-button {
+    display: grid;
+    grid-template-columns: 76px 1fr auto;
+    align-items: center;
+    gap: 0 10px;
+    width: 100%;
+    padding: 12px 0;
+    border: 0;
+    background: transparent;
+    text-align: left;
+}
+.pick-button:active { background: rgba(21, 48, 42, 0.07); }
+.pick-code { font-family: var(--num); font-size: 22px; font-weight: 700; }
+.pick-text { display: flex; flex-direction: column; min-width: 0; }
+.pick-text b { font-size: 15px; font-weight: 700; }
+.pick-text span { font-size: 13px; color: var(--ink-soft); }
+.pick-count { display: flex; flex-direction: column; align-items: flex-end; font-size: 14px; }
+.pick-count em { font-style: normal; font-size: 13px; font-weight: 700; color: var(--red); }
 
 .route-title { margin: 34px 0 8px; font-size: 17px; font-weight: 700; }
 .route { border-top: 2px solid var(--ink); }
@@ -124,6 +186,7 @@ ol { list-style: none; }
 }
 .band[data-light="yellow"] { background: var(--yellow); color: var(--ink); }
 .band[data-light="red"] { background: var(--red); }
+.band[data-light="practice"] { background: var(--ink); }
 .band.is-flipping { animation: flip 360ms ease-in-out; }
 @keyframes flip {
     0%, 100% { transform: perspective(600px) rotateX(0); }
@@ -159,6 +222,16 @@ ol { list-style: none; }
 }
 .band[data-light="yellow"] .band-meta { border-top-color: rgba(21, 48, 42, 0.35); }
 .band-score { margin-left: auto; font-weight: 700; }
+.band-exit {
+    margin-left: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font-size: 14px;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
 
 .stage { flex: 1; padding: 22px 0 16px; }
 
@@ -181,8 +254,41 @@ ol { list-style: none; }
 .cleared-head { font-size: 22px; font-weight: 800; }
 .cleared-note { font-size: 15px; }
 .intro-name { font-size: 30px; line-height: 1.2; font-weight: 800; }
-.intro-gloss { margin: 4px 0 18px; font-size: 18px; color: var(--ink-soft); }
-.intro-fact { margin-bottom: 12px; font-size: 16px; }
+.intro-gloss { margin: 4px 0 16px; font-size: 18px; color: var(--ink-soft); }
+.intro-fact { margin: 14px 0 12px; font-size: 15px; }
+
+/* 知识卡：做成议程纸上的一栏，先讲这一级真实要做什么，后面的题才考 */
+.know { padding: 12px 14px 12px; border-radius: 10px; background: var(--sheet); }
+.know-title { margin: 0 0 6px; font-size: 18px; font-weight: 800; }
+.know-list { margin: 0; padding: 0; list-style: none; }
+.know-list li {
+    position: relative;
+    padding: 7px 0 7px 16px;
+    border-top: 1px dashed var(--rule);
+    font-size: 15px;
+    line-height: 1.6;
+}
+.know-list li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 17px;
+    width: 7px;
+    height: 7px;
+    background: var(--ink);
+}
+.know-note {
+    padding-top: 8px;
+    border-top: 1px dashed var(--rule);
+    font-size: 14px;
+    color: var(--ink-soft);
+}
+
+/* 练完一关的小结 */
+.done-title { font-size: 30px; line-height: 1.2; font-weight: 800; }
+.done-note { margin: 6px 0 18px; font-size: 16px; }
+.done-actions, .result-actions { display: grid; gap: 10px; }
+.done .review-title { margin-top: 28px; }
 .intro-fact b { font-weight: 700; }
 .intro .route { margin-top: 22px; }
 
@@ -345,7 +451,35 @@ ol { list-style: none; }
 .fb-answer { margin-top: 2px; font-size: 17px; font-weight: 700; }
 .fb-explain { margin-top: 6px; font-size: 16px; }
 .fb-light { margin-top: 8px; font-size: 15px; font-weight: 700; color: var(--red); }
-.fb-src { display: inline-block; margin-top: 8px; font-size: 13px; color: var(--ink-soft); }
+.fb-note { margin-top: 8px; font-size: 14px; font-weight: 600; color: var(--ink-soft); }
+
+/* 展开讲讲：答错自动摊开，答对先折着 */
+.detail { margin-top: 10px; border-top: 1px dashed var(--rule); }
+.detail summary {
+    padding: 8px 0 6px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+.detail[open] summary { text-decoration: none; }
+.detail-text { padding-bottom: 4px; font-size: 15px; line-height: 1.7; }
+
+.src-line { margin-top: 8px; font-size: 13px; line-height: 1.6; color: var(--ink-soft); }
+.src-line a { color: inherit; }
+.report { margin-top: 8px; }
+.report-button {
+    padding: 4px 10px;
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    background: transparent;
+    font-size: 13px;
+    color: var(--ink-soft);
+}
+.report-status { margin-top: 6px; font-size: 13px; font-weight: 600; }
+/* 只是给老式复制接口借用的输入框，不该被看见 */
+.copy-area { position: fixed; top: 0; left: 0; width: 1px; height: 1px; opacity: 0; }
 
 /* ── 结果页 ─────────────────────────────────────────────── */
 .result { padding-top: 20px; }
@@ -437,7 +571,9 @@ ol { list-style: none; }
 .review-quote { font-family: var(--kai); font-size: 17px; }
 .review-q { font-size: 16px; font-weight: 700; }
 .review-a { margin-top: 2px; font-size: 16px; font-weight: 700; color: var(--green); }
-.review-explain { margin-top: 2px; font-size: 15px; color: var(--ink-soft); }
+.review-explain { margin-top: 2px; font-size: 15px; font-weight: 600; }
+.review-detail { margin-top: 4px; font-size: 15px; line-height: 1.7; }
+.review-sub { margin-top: 2px; font-size: 14px; color: var(--ink-soft); }
 
 @media (prefers-reduced-motion: reduce) {
     .band.is-flipping, .shot.is-stamped .rosette { animation: none; }
